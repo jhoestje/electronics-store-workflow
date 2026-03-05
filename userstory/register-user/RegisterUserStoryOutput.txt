@@ -1,0 +1,236 @@
+=============================================================================
+  REGISTER USER — IMPLEMENTATION OUTPUT SUMMARY
+  Feature ID : register-user
+  Completed  : Phase 5 (Documentation)
+  Test Result: 31/31 tests passing
+=============================================================================
+
+─────────────────────────────────────────────────────────────────────────────
+1. USER STORY
+─────────────────────────────────────────────────────────────────────────────
+As an unregistered user
+I want to register on the website with my email, password and username
+  by clicking on the register button
+So that I can be a registered user and be able to login and make purchases
+
+─────────────────────────────────────────────────────────────────────────────
+2. ACCEPTANCE CRITERIA — ALL MET ✅
+─────────────────────────────────────────────────────────────────────────────
+US-REG-01: Registration Form
+  ✅ "Register" button visible in Navbar for unauthenticated users
+  ✅ Clicking "Register" navigates to /register
+  ✅ Form has Username, Email, Password, and Confirm Password fields
+  ✅ Submit button labelled "Register"
+  ✅ Link to Login page for existing users
+
+US-REG-02: Successful Registration
+  ✅ Valid credentials create a new user account
+  ✅ Real JWT token returned and stored in localStorage
+  ✅ User automatically authenticated and redirected to home page
+  ✅ Navbar shows logged-in state
+
+US-REG-03: Registration Validation
+  ✅ Empty username → "Username is required"
+  ✅ Empty/invalid email → "Email is required" / "Enter a valid email address"
+  ✅ Empty password → "Password is required"
+  ✅ Weak password → "Password must contain uppercase, digit, and special character"
+  ✅ Non-matching passwords → "Passwords must match"
+  ✅ Duplicate username → 400 {"error": "Username already exists"}
+  ✅ Duplicate email → 400 {"error": "Email already exists"}
+
+TS-REG-01: JWT Token Generation
+  ✅ JwtService generates signed HS256 JWT tokens
+  ✅ JwtAuthFilter validates tokens on incoming requests
+  ✅ AuthService.register() and login() return real JWT tokens
+  ✅ jwt.secret and jwt.expiration configured in application.yml
+
+TS-REG-02: Error Handling
+  ✅ Duplicate username → 400 {"error": "Username already exists"}
+  ✅ Duplicate email → 400 {"error": "Email already exists"}
+  ✅ Validation failures → 400 {field: message, ...}
+  ✅ Bad credentials → 401 {"error": "Invalid username or password"}
+
+─────────────────────────────────────────────────────────────────────────────
+3. FILES CREATED / MODIFIED
+─────────────────────────────────────────────────────────────────────────────
+BACKEND — NEW FILES
+  backend/src/main/java/com/store/electronics/security/JwtService.java
+    JWT token generation (generateToken) and validation (isTokenValid,
+    extractUsername) using JJWT 0.11.5 + HS256.
+
+  backend/src/main/java/com/store/electronics/security/JwtAuthFilter.java
+    OncePerRequestFilter. Reads Authorization header, validates JWT, and
+    sets authentication in SecurityContextHolder.
+
+  backend/src/main/java/com/store/electronics/exception/UsernameAlreadyExistsException.java
+    RuntimeException thrown when username is already taken.
+
+  backend/src/main/java/com/store/electronics/exception/EmailAlreadyExistsException.java
+    RuntimeException thrown when email is already registered.
+
+  backend/src/main/java/com/store/electronics/exception/GlobalExceptionHandler.java
+    @RestControllerAdvice handling:
+      UsernameAlreadyExistsException → 400
+      EmailAlreadyExistsException    → 400
+      BadCredentialsException        → 401  (generic message, no info leakage)
+      MethodArgumentNotValidException → 400 with field-level errors
+
+BACKEND — MODIFIED FILES
+  backend/src/main/java/com/store/electronics/dto/RegisterRequest.java
+    Added @Pattern password constraint:
+      ^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$
+
+  backend/src/main/java/com/store/electronics/service/AuthService.java
+    Replaced dummy-token with real JwtService.generateToken() call.
+    Throws UsernameAlreadyExistsException / EmailAlreadyExistsException.
+    First registered user promoted to ROLE_ADMIN.
+
+  backend/src/main/java/com/store/electronics/security/SecurityConfig.java
+    Wired JwtAuthFilter before UsernamePasswordAuthenticationFilter.
+    Added authenticationProvider bean (DaoAuthenticationProvider).
+
+  backend/src/main/java/com/store/electronics/controller/AuthController.java
+    Removed redundant @CrossOrigin (CORS centralised in SecurityConfig).
+
+  backend/src/main/resources/application.yml
+    Added jwt.secret (base64-encoded, 256-bit) and jwt.expiration (86400000 ms).
+    Set server.error.include-message: never  (security hardening).
+    Set h2.console.settings.web-allow-others: false  (security hardening).
+    Reduced logging levels to WARN/INFO (was DEBUG).
+
+  backend/pom.xml
+    Upgraded Lombok to 1.18.38 (Java 25 compatibility).
+    Added maven-compiler-plugin with annotationProcessorPaths for Lombok.
+    Added maven-surefire-plugin JVM args for Mockito on Java 21+/25.
+
+FRONTEND — NEW FILES
+  frontend/src/pages/Register.tsx
+    Formik + Yup form (username, email, password, confirmPassword).
+    Yup schema mirrors backend password pattern.
+    Calls authAPI.register(), dispatches loginSuccess, navigates to /.
+    Shows MUI Alert on API errors with message from response.
+
+FRONTEND — MODIFIED FILES
+  frontend/src/App.tsx
+    Added <Route path="/register" element={<Register />} />.
+
+  frontend/package.json
+    Added vitest, @vitest/coverage-v8, @testing-library/react,
+    @testing-library/user-event, @testing-library/jest-dom, jsdom,
+    and test/test:coverage scripts.
+
+  frontend/vite.config.ts
+    Added test block: globals: true, environment: jsdom,
+    setupFiles: ./src/test/setup.ts, css: false.
+
+─────────────────────────────────────────────────────────────────────────────
+4. TEST COVERAGE — 31/31 PASSING
+─────────────────────────────────────────────────────────────────────────────
+BACKEND UNIT — JwtServiceTest (6 tests)
+  ✅ generateToken_shouldReturnNonNullToken
+  ✅ extractUsername_shouldReturnCorrectUsername
+  ✅ isTokenValid_withValidToken_shouldReturnTrue
+  ✅ isTokenValid_withExpiredToken_shouldReturnFalse
+  ✅ isTokenValid_withDifferentUser_shouldReturnFalse
+  ✅ generateToken_shouldContainSubjectClaim
+
+BACKEND UNIT — AuthServiceTest (6 tests)
+  ✅ register_givenValidRequest_shouldReturnAuthResponseWithToken
+  ✅ register_givenFirstUser_shouldPromoteToAdminRole
+  ✅ register_givenDuplicateUsername_shouldThrowException
+  ✅ register_givenDuplicateEmail_shouldThrowException
+  ✅ login_givenValidCredentials_shouldReturnAuthResponse
+  ✅ login_givenInvalidCredentials_shouldThrowException
+
+BACKEND INTEGRATION — AuthControllerIntegrationTest (9 tests)
+  ✅ register_givenValidData_shouldReturn200WithToken
+  ✅ register_givenFirstUser_shouldAssignAdminRole
+  ✅ register_givenDuplicateUsername_shouldReturn400
+  ✅ register_givenDuplicateEmail_shouldReturn400
+  ✅ register_givenWeakPassword_shouldReturn400
+  ✅ register_givenBlankUsername_shouldReturn400
+  ✅ register_givenInvalidEmail_shouldReturn400
+  ✅ login_givenValidCredentials_shouldReturn200WithToken
+  ✅ login_givenInvalidPassword_shouldReturn4xx
+
+BACKEND BEHAVIORAL — Cucumber / Gherkin (10 scenarios)
+  Feature file : backend/src/test/resources/features/user_registration.feature
+  Step defs    : UserRegistrationStepDefs.java
+  Runner       : UserRegistrationRunner.java
+  Config       : CucumberSpringConfiguration.java
+  Scenarios    : Successful registration, first-user admin, duplicate username,
+                 duplicate email, weak password, blank username, invalid email,
+                 login after register, login with wrong password, login for
+                 non-existent user.
+
+FRONTEND COMPONENT — Register.test.tsx (10 tests)
+  ✅ renders all form fields and register button
+  ✅ renders a link to the login page
+  ✅ shows validation errors when submitting empty form
+  ✅ shows error when email format is invalid
+  ✅ shows error when password does not meet strength requirements
+  ✅ shows error when passwords do not match
+  ✅ calls authAPI.register and navigates home on successful registration
+  ✅ shows API error alert when username already exists
+  ✅ shows API error alert when email already exists
+  ✅ shows fallback error message on unexpected API failure
+
+─────────────────────────────────────────────────────────────────────────────
+5. SECURITY POSTURE
+─────────────────────────────────────────────────────────────────────────────
+  ✅ Passwords hashed with BCrypt before storage
+  ✅ JWT signed with HS256, 256-bit secret, 24-hour expiration
+  ✅ @JsonIgnore on User.password — never exposed in API responses
+  ✅ BadCredentialsException returns generic "Invalid username or password" message
+       (prevents username enumeration)
+  ✅ server.error.include-message: never — no internal exception leakage
+  ✅ H2 console web-allow-others: false — no remote DB access
+  ✅ Stateless session management (no JSESSIONID)
+  ✅ CORS restricted to http://localhost:5173
+
+─────────────────────────────────────────────────────────────────────────────
+6. BUILD & RUN INSTRUCTIONS
+─────────────────────────────────────────────────────────────────────────────
+Prerequisites: Java 25+ (or 17+), Maven 3.6+, Node.js 18+
+
+Backend:
+  cd backend
+  mvn clean install       # compile + test
+  mvn spring-boot:run     # starts on http://localhost:8080
+
+Frontend:
+  cd frontend
+  npm install
+  npm run dev             # starts on http://localhost:5173
+
+Run backend tests only:
+  mvn test -f backend/pom.xml
+
+Run frontend tests only:
+  cd frontend && npm test
+
+─────────────────────────────────────────────────────────────────────────────
+7. KEY CONFIGURATION VALUES
+─────────────────────────────────────────────────────────────────────────────
+  jwt.secret      : c2VjcmV0S2V5Rm9yRWxlY3Ryb25pY3NTdG9yZUFwcGxpY2F0aW9u
+                    (base64 of "secretKeyForElectronicsStoreApplication")
+  jwt.expiration  : 86400000  (24 hours in milliseconds)
+  Password regex  : ^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$
+  Lombok version  : 1.18.38  (required for Java 25 compatibility)
+  API base URL    : http://localhost:8080/api
+
+─────────────────────────────────────────────────────────────────────────────
+8. KNOWN NOTES
+─────────────────────────────────────────────────────────────────────────────
+  • JWT secret is stored in application.yml. For production, externalise via
+    environment variable: jwt.secret=${JWT_SECRET}.
+  • First registered user is automatically promoted to ROLE_ADMIN. This logic
+    checks userRepository.count() == 1 after save — intentional behaviour.
+  • Lombok 1.18.38 + annotationProcessorPaths + --add-opens compilerArgs are
+    required because this project runs on Java 25 (Spring Boot 3.2.0 ships
+    Lombok 1.18.30 which is incompatible with Java 25).
+  • Mockito subclass mock maker (mockito-extensions/org.mockito.plugins.MockMaker)
+    is required because Mockito inline mocking cannot instrument classes on
+    Java 25 without a dedicated javaagent.
+
+=============================================================================
